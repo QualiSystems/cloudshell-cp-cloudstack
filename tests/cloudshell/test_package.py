@@ -1,4 +1,4 @@
-from cloudshell.template.package import info
+from cloudshell.cp.package import info
 
 
 def test_info():

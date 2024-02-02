@@ -39,13 +39,13 @@ class NetworkOffering:
     _logger: ClassVar[Logger]
 
     id: str  # noqa: A003
-    type: str
+    offering_type: str
     network_type: NetworkOfferingType
     state: int | None
     specify_vlan: bool
 
     def __str__(self) -> str:
-        return f"Network Offering '{self.type}'"
+        return f"Network Offering '{self.offering_type}'"
 
     @classmethod
     def from_dict(cls, net_dict: dict) -> NetworkOffering:
@@ -65,22 +65,11 @@ class NetworkOffering:
                 return net_offering
 
     @classmethod
-    def get_by_type(cls, type: NetworkOfferingType) -> NetworkOffering:
-        cls._logger.debug(f"Getting a network with ID '{type}'")
+    def get_by_type(cls, offering_type: NetworkOfferingType) -> NetworkOffering | None:
+        cls._logger.debug(f"Getting a network with ID '{offering_type}'")
         for net_offering in cls.all():
-            if net_offering.network_type == type:
+            if net_offering.network_type == offering_type:
                 return net_offering
-
-    # @classmethod
-    # def find_first(cls, name: str) -> NetworkOffering:
-    #     cls._logger.debug(f"Searching for first network with name '{name}'")
-    #     offerings = cls.all()
-    #     for net_offering in offerings:
-    #         if net_offering.network_type["name"] == name:
-    #             break
-    #     else:
-    #         raise NetworkNotFound(name=name)
-    #     return cls.from_dict(net_dict)
 
     @classmethod  # noqa: A003
     def all(cls) -> Generator[NetworkOffering, None, None]:  # noqa: A003

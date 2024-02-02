@@ -1,7 +1,7 @@
 from cloudshell.cp.core.flows import AbstractVMDetailsFlow
 from cloudshell.cp.core.request_actions.models import VmDetailsData
 
-from cloudshell.cp.cloudstack.actions.vm_details import get_vm, get_vm_details
+from cloudshell.cp.cloudstack.actions.vm_details_actions import get_vm_details
 from cloudshell.cp.cloudstack.models.deployed_app import VMFromTemplateDeployedApp
 from cloudshell.cp.cloudstack.services.cloudstack_api_service import (
     CloudStackAPIService,
@@ -18,7 +18,7 @@ class CloudstackGetVMDetailsFlow(AbstractVMDetailsFlow):
         self._resource_config = resource_config
 
     def _get_vm_details(self, deployed_app: VMFromTemplateDeployedApp) -> VmDetailsData:
-        """Get CloudstackVirtualMachine Details.
+        """Get VM Details.
 
         :param cloudshell.cp.core.request_actions.DeployedApp deployed_app:
         :rtype: cloudshell.cp.core.request_actions.models.VmDetailsData

@@ -1,9 +1,8 @@
-import time
 from logging import Logger
 
 from cloudshell.cp.core.request_actions.models import DeployAppResult
 
-from cloudshell.cp.cloudstack.actions.vm_details import get_vm_details
+from cloudshell.cp.cloudstack.actions.vm_details_actions import get_vm_details
 from cloudshell.cp.cloudstack.models.deploy_app import VMFromTemplateDeployApp
 from cloudshell.cp.cloudstack.models.resource_config import CloudstackResourceConfig
 from cloudshell.cp.cloudstack.services.cloudstack_api_service import (

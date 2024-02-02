@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import random
 import re
 import time
 from enum import Enum
@@ -10,7 +9,6 @@ from typing import ClassVar
 
 import attr
 
-from cloudshell.api.common_cloudshell_api import retry
 from cloudshell.cp.core.utils.name_generator import NameGenerator
 
 from cloudshell.cp.cloudstack.api_client.cloudstack_api import CloudStackAPIClient
@@ -19,7 +17,6 @@ from cloudshell.cp.cloudstack.exceptions import (
     InstanceErrorState,
     InstanceNotFound,
     PortIsNotAttached,
-    PortNotFound,
 )
 from cloudshell.cp.cloudstack.models.deploy_app import VMFromTemplateDeployApp
 from cloudshell.cp.cloudstack.models.resource_config import CloudstackResourceConfig

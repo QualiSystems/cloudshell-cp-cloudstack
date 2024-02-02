@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from cloudshell.cp.cloudstack.entities import port, vm, vm_network
+from cloudshell.cp.cloudstack.entities.network import Network
+from cloudshell.cp.cloudstack.entities.vm import CloudstackVirtualMachine
 
 
 class CloudstackBaseException(Exception):
@@ -54,14 +53,14 @@ class CreateNetworkError(CloudstackNetworkException):
 
 
 class InstanceErrorState(CloudstackBaseException):
-    def __init__(self, instance: vm.CloudstackVirtualMachine, msg: str):
+    def __init__(self, instance: CloudstackVirtualMachine, msg: str):
         super().__init__(
             f"The {instance.vm_data['displayname']} status is error. " f"Message: {msg}"
         )
 
 
 class MgmtIfaceIsMissed(CloudstackBaseException):
-    def __init__(self, instance: vm.CloudstackVirtualMachine):
+    def __init__(self, instance: CloudstackVirtualMachine):
         super().__init__(f"Cannot find management interface on the {instance}")
 
 
@@ -92,13 +91,8 @@ class PortNotFound(CloudstackNetworkException):
         super().__init__(msg)
 
 
-class PortIsNotGone(CloudstackNetworkException):
-    def __init__(self, port: port.Port):
-        super().__init__(f"The {port} is not gone")
-
-
 class PortIsNotAttached(CloudstackNetworkException):
-    def __init__(self, network_name: str, instance: vm.CloudstackVirtualMachine):
+    def __init__(self, network_name: str, instance: CloudstackVirtualMachine):
         super().__init__(
             f"Failed to attach {instance.vm_name} instance to "
             f"{network_name} network"
@@ -136,12 +130,12 @@ class NetworkNotFound(CloudstackNetworkException):
 
 
 class NetworkInUse(CloudstackNetworkException):
-    def __init__(self, network: vm_network.Network):
+    def __init__(self, network: Network):
         super().__init__(f"{network} in use")
 
 
 class NetworkWithVlanIsNotCreatedByCloudShell(CloudstackNetworkException):
-    def __init__(self, network: vm_network.Network, vlan_id: int):
+    def __init__(self, network: Network, vlan_id: int):
         super().__init__(f"{network} with VLAN {vlan_id} is not created by CloudShell")
 
 
@@ -194,5 +188,5 @@ class SubnetCidrFormatError(CloudstackBaseException):
 
 
 class PrivateIpIsNotInMgmtNetwork(CloudstackBaseException):
-    def __init__(self, ip: str, network: vm_network.Network):
+    def __init__(self, ip: str, network: Network):
         super().__init__(f"Private IP {ip} is not inside the {network}")

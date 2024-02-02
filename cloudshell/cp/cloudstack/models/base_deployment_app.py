@@ -70,7 +70,7 @@ class ResourceListAttrRODeploymentPath(ResourceAttrRODeploymentPath):
         super().__init__(name, default)
         self._sep = sep
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance, owner) -> list[str]:
         val = super().__get__(instance, owner)
         if val is self or val is self.default or not isinstance(val, str):
             return val
@@ -87,7 +87,7 @@ class IncorrectHddSpecFormat(Exception):
 
 
 class ResourceIntAttrRODeploymentPath(ResourceAttrRODeploymentPath):
-    def __get__(self, instance, owner) -> int:
+    def __get__(self, instance, owner) -> int | None:
         val = super().__get__(instance, owner)
         if val is self or val is self.default:
             return val
@@ -95,7 +95,7 @@ class ResourceIntAttrRODeploymentPath(ResourceAttrRODeploymentPath):
 
 
 class ResourceFloatAttrRODeploymentPath(ResourceAttrRODeploymentPath):
-    def __get__(self, instance, owner) -> float:
+    def __get__(self, instance, owner) -> float | None:
         val = super().__get__(instance, owner)
         if val is self or val is self.default:
             return val
@@ -119,11 +119,11 @@ class HddSpec:
     def from_str(cls, text: str) -> HddSpec:
         try:
             num, size = text.split(":")
-            num = int(re.search(r"\d+", num).group())
-            size = float(size)
+            num = int(re.search(r"\d+", num).group())  # type: ignore
+            size = float(size)  # type: ignore
         except ValueError:
             raise IncorrectHddSpecFormat(text)
-        return cls(num, size)
+        return cls(num, size)  # type: ignore
 
     @property
     def size_in_kb(self) -> int:

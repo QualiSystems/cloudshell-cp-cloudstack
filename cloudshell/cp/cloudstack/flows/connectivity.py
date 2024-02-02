@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import logging
-from contextlib import suppress
-from functools import cached_property
-from itertools import chain
 from typing import TYPE_CHECKING, Any
 
 from attrs import define, field
@@ -13,7 +10,6 @@ from cloudshell.shell.flows.connectivity.cloud_providers_flow import (
     VnicInfo,
 )
 from cloudshell.shell.flows.connectivity.models.connectivity_model import (
-    ConnectionModeEnum,
     is_remove_action,
     is_set_action,
 )
@@ -22,11 +18,7 @@ from cloudshell.cp.cloudstack.entities.network import Network
 from cloudshell.cp.cloudstack.entities.network_offering import NetworkOfferingType
 from cloudshell.cp.cloudstack.entities.network_type import NetworkType
 from cloudshell.cp.cloudstack.entities.vm import CloudstackVirtualMachine, Interface
-from cloudshell.cp.cloudstack.exceptions import (
-    InstanceNotFound,
-    NetworkNotFound,
-    PortNotFound,
-)
+from cloudshell.cp.cloudstack.exceptions import NetworkNotFound
 from cloudshell.cp.cloudstack.helpers.network_settings_helper import (
     NETWORK_PREFIX,
     NetworkSettings,
@@ -49,9 +41,6 @@ if TYPE_CHECKING:
 VM_NOT_FOUND_MSG = "VM {} is not found. Skip disconnecting vNIC"
 logger = logging.getLogger(__name__)
 network_lock = LockHandler()
-
-
-# switch_lock = LockHandler()
 
 
 @define(slots=False)
@@ -220,6 +209,8 @@ class ConnectivityFlow(AbcCloudProviderConnectivityFlow):
                 network = self._api_service.Network.find_by_id_or_name(
                     net_settings.name
                 )
+                if not network:
+                    raise NetworkNotFound(name=net_settings.name)
             except NetworkNotFound:
                 if net_settings.network_isolation == NetworkType.VLAN:
                     network_offering = self._api_service.NetworkOffering.get_by_type(
@@ -240,7 +231,7 @@ class ConnectivityFlow(AbcCloudProviderConnectivityFlow):
                         )
                 network = self._api_service.Network.create(
                     name=net_settings.name,
-                    zone_id=net_settings.zone_id,
+                    zone_id=net_settings.zone_id,  # type: ignore
                     networking_offering=network_offering.id,
                     vlan_id=net_settings.vlan_id,
                     subnet_cidr_data=net_settings.subnet,

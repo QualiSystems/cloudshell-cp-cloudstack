@@ -102,4 +102,4 @@ class NetworkSettings:
             vm_uuid=action.custom_action_attrs.vm_uuid,
             network_isolation=network_isolation,
             subnet=subnet,
-        )
+        )  # type: ignore

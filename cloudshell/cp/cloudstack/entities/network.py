@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Generator
 from logging import Logger
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
 import attr
 
+from cloudshell.cp.cloudstack.api_client.cloudstack_api import CloudStackAPIClient
 from cloudshell.cp.cloudstack.entities.network_type import NetworkType
 from cloudshell.cp.cloudstack.exceptions import (
     CreateNetworkError,
@@ -14,13 +14,10 @@ from cloudshell.cp.cloudstack.exceptions import (
 )
 from cloudshell.cp.cloudstack.models.connectivity_action_model import SubnetCidrData
 
-if TYPE_CHECKING:
-    from cloudshell.cp.cloudstack.api_client import CloudStackAPIService
-
 
 @attr.s(auto_attribs=True, str=False)
 class Network:
-    api: ClassVar[CloudStackAPIService]
+    api: ClassVar[CloudStackAPIClient]
     _logger: ClassVar[Logger]
 
     id_: str  # noqa: A003
@@ -51,10 +48,10 @@ class Network:
     def find_by_vlan_id(cls, vlan_id: int) -> Network:
         networks = cls._list_networks({"vlan": vlan_id})
         try:
-            net_dict = networks[0]
+            network = networks[0]
         except (TypeError, IndexError):
             raise NetworkNotFound(vlan_id=vlan_id) from None
-        return cls.from_dict(net_dict)
+        return network
 
     @classmethod
     def find_by_id(cls, id_: str) -> Network:
@@ -82,24 +79,22 @@ class Network:
         if networks is None:
             raise NetworkNotFound(name=data)
         for network in networks:
-            if network.name == data:
-                return network
-            if network.id_ == data:
+            if network.name == data or network.id_ == data:
                 return network
         if raise_error:
             raise NetworkNotFound(name=data)
 
     @classmethod  # noqa: A003
-    def all(cls) -> Generator[Network, None, None]:  # noqa: A003
+    def all(cls) -> list[Network]:  # noqa: A003
         cls._logger.debug("Get all networks")
         return cls._list_networks()
 
     @classmethod
-    def _list_networks(cls, filter: dict = None) -> list[Network, None, None]:
+    def _list_networks(cls, network_filter: dict | None = None) -> list[Network]:
         inputs = {"command": "listNetworks"}
-        if filter:
-            inputs.update(filter)
-        # add filter by tags
+        if network_filter:
+            inputs.update(network_filter)
+        # add network_filter by tags
         response = cls.api.send_request(inputs)
         networks = response.json()["listnetworksresponse"]["network"]
 
@@ -135,8 +130,8 @@ class Network:
                 {
                     "gateway": str(subnet_cidr_data.gateway),
                     "netmask": str(subnet_cidr_data.cidr.netmask),
-                    "startip": str(subnet_cidr_data.allocation_pool[0]),
-                    "endip": str(subnet_cidr_data.allocation_pool[1]),
+                    "startip": str(subnet_cidr_data.allocation_pool[0]),  # type: ignore
+                    "endip": str(subnet_cidr_data.allocation_pool[1]),  # type: ignore
                 }
             )
         cls._logger.debug(f"Creating a network {name}")

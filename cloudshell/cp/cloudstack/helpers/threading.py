@@ -15,7 +15,7 @@ class LockHandler:
     _locks: dict[str, Lock] = field(init=False, factory=dict)
 
     @contextmanager
-    def lock(self, net_name: str) -> None:
+    def lock(self, net_name: str):
         lock = self._get_lock(net_name)
         with lock:
             yield

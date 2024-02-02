@@ -1,5 +1,5 @@
 from ipaddress import IPv4Address, IPv4Network
-from typing import Optional, Tuple
+from typing import Optional
 
 from pydantic import BaseModel, Field, ValidationError, validator
 
@@ -7,9 +7,6 @@ from cloudshell.shell.flows.connectivity.models.connectivity_model import (
     ConnectionParamsModel,
     ConnectivityActionModel,
     VlanServiceModel,
-)
-from cloudshell.shell.flows.connectivity.parse_request_service import (
-    ParseConnectivityRequestService,
 )
 
 from cloudshell.cp.cloudstack.entities.network_type import NetworkType

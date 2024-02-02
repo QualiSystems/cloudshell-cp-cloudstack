@@ -2,7 +2,6 @@ import base64
 import hashlib
 import hmac
 import random
-import re
 import time
 import urllib
 
@@ -67,6 +66,6 @@ class CloudStackAPIClient:
         logger.info(response)
 
         if response.status_code != 200 and response.status_code != 201:
-            raise Exception(f"Cannot connect to CloudStack instance.")
+            raise Exception("Cannot connect to CloudStack management server.")
 
         return True

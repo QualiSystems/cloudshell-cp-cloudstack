@@ -13,21 +13,6 @@ from cloudshell.cp.cloudstack.models.base_deployment_app import (
     ResourceIntAttrRODeploymentPath,
 )
 
-# from cloudshell.cp.vcenter import constants
-# from cloudshell.cp.vcenter.models.base_deployment_app import (
-#     HddSpecsAttrRO,
-#     ResourceAttrRODeploymentPath,
-#     ResourceBoolAttrRODeploymentPath,
-#     ResourceFloatAttrRODeploymentPath,
-#     ResourceIntAttrRODeploymentPath,
-#     ResourceListAttrRODeploymentPath,
-#     VCenterDeploymentAppAttributeNames,
-#     VCenterVMFromCloneDeployAppAttributeNames,
-#     VCenterVMFromImageDeploymentAppAttributeNames,
-#     VCenterVMFromTemplateDeploymentAppAttributeNames,
-#     VCenterVMFromVMDeploymentAppAttributeNames,
-# )
-
 
 class BaseCSDeployApp(DeployApp):
     _DO_NOT_EDIT_APP_NAME = True
@@ -45,7 +30,6 @@ class BaseCSDeployApp(DeployApp):
     auto_delete = ResourceBoolAttrRODeploymentPath(ATTR_NAMES.auto_delete)
     autoload = ResourceBoolAttrRODeploymentPath(ATTR_NAMES.autoload)
     ip_regex = ResourceAttrRODeploymentPath(ATTR_NAMES.ip_regex)
-    # refresh_ip_timeout = ResourceIntAttrRODeploymentPath(ATTR_NAMES.refresh_ip_timeout)
     hostname = ResourceAttrRODeploymentPath(ATTR_NAMES.hostname)
     private_ip = ResourceAttrRODeploymentPath(ATTR_NAMES.private_ip)
     cpu_num = ResourceIntAttrRODeploymentPath(ATTR_NAMES.cpu_num)
@@ -60,31 +44,6 @@ class VMFromTemplateDeployApp(BaseCSDeployApp):
 
     DEPLOYMENT_PATH = constants.VM_FROM_TEMPLATE_DEPLOYMENT_PATH
     template_id = ResourceAttrRODeploymentPath(ATTR_NAMES.template_id)
-
-
-#
-# class VMFromImageDeployApp(BaseCSDeployApp):
-#     ATTR_NAMES = VCenterVMFromImageDeploymentAppAttributeNames
-#
-#     DEPLOYMENT_PATH = constants.VM_FROM_IMAGE_DEPLOYMENT_PATH
-#     vcenter_image = ResourceAttrRODeploymentPath(ATTR_NAMES.vcenter_image)
-#     vcenter_image_arguments = ResourceListAttrRODeploymentPath(
-#         ATTR_NAMES.vcenter_image_arguments
-#     )
-#
-#
-# class VMFromVMDeployApp(BaseVCenterDeployApp):
-#     ATTR_NAMES = VCenterVMFromVMDeploymentAppAttributeNames
-#
-#     DEPLOYMENT_PATH = constants.VM_FROM_VM_DEPLOYMENT_PATH
-#     vcenter_vm = ResourceAttrRODeploymentPath(ATTR_NAMES.vcenter_vm)
-#
-#
-# class VMFromLinkedCloneDeployApp(VMFromVMDeployApp):
-#     ATTR_NAMES = VCenterVMFromCloneDeployAppAttributeNames
-#
-#     DEPLOYMENT_PATH = constants.VM_FROM_LINKED_CLONE_DEPLOYMENT_PATH
-#     vcenter_vm_snapshot = ResourceAttrRODeploymentPath(ATTR_NAMES.vcenter_vm_snapshot)
 
 
 class CloudStackDeployVMRequestActions(DeployVMRequestActions):

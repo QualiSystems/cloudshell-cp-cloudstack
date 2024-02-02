@@ -1,24 +1,13 @@
-from logging import Logger
-
 from cloudshell.cp.core.request_actions.models import (
-    DeployedApp,
     VmDetailsData,
     VmDetailsNetworkInterface,
     VmDetailsProperty,
 )
 
 from cloudshell.cp.cloudstack.entities.vm import CloudstackVirtualMachine
-from cloudshell.cp.cloudstack.models.resource_config import CloudstackResourceConfig
 from cloudshell.cp.cloudstack.services.cloudstack_api_service import (
     CloudStackAPIService,
 )
-
-
-def get_vm(
-    resource_conf: CloudstackResourceConfig, deployed_app: DeployedApp, logger: Logger
-):
-    cloudstack_api = resource_conf.get_cloudstack_api()
-    return CloudstackVirtualMachine(cloudstack_api, deployed_app.vmdetails.uid, logger)
 
 
 def _sort_networks_key(mgmt_net_id: str):
@@ -41,7 +30,6 @@ def get_vm_details(
     )
 
     vm_instance_data = [
-        # VmDetailsProperty(key='Instance Name', value=vm.vm_data['name'])
         VmDetailsProperty(key="CPU", value=f"{vm.num_cpu} vCPU"),
         VmDetailsProperty(key="Memory", value=vm.memory_size),
         VmDetailsProperty(key="Guest OS", value=vm.guest_os),

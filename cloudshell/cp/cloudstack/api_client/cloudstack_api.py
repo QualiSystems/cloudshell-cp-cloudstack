@@ -44,19 +44,122 @@ class CloudStackAPIClient:
         response = self.session.get(req)
         return response
 
-    def get_job_status(self, job_id):
-        inputs = {"command": "queryAsyncJobResult", "jobid": job_id}
-        return self.send_request(inputs).json()
+    def get_job_status(self, job_id: str):
+        if job_id:
+            inputs = {"command": "queryAsyncJobResult", "jobid": job_id}
+            return (
+                self.send_request(inputs).json().get("queryasyncjobresultresponse", {})
+            )
 
     def wait_for_job(
-        self, job_id, max_retries: int = 5, min_sleep: int = 5, max_sleep: int = 10
+        self, job_id, max_retries: int = 30, min_sleep: int = 7, max_sleep: int = 12
     ):
         retries = 0
         status = self.get_job_status(job_id).get("jobstatus", 0)
-        while status == 0 and retries < max_retries:
+
+        while status != 2 and retries < max_retries:
             time.sleep(random.randint(min_sleep, max_sleep))
+            status = self.get_job_status(job_id).get("jobstatus", 0)
             retries += 1
         return status
+
+    def get_resource_events(
+        self, event_type, resource_id=None, resource_type=None, keyword=None
+    ):
+        inputs = {
+            "command": "listEvents",
+            "type": event_type,
+        }
+
+        if resource_id:
+            inputs["resourceid"] = resource_id
+
+        if resource_type:
+            inputs["resourcetype"] = resource_type
+
+        if keyword:
+            inputs["keyword"] = keyword
+
+        return (
+            self.send_request(inputs)
+            .json()
+            .get("listeventsresponse", {})
+            .get("event", [])
+        )
+
+    def wait_for_event_completed(
+        self,
+        resource_id,
+        resource_type,
+        event_type,
+        max_retries: int = 30,
+        min_sleep: int = 7,
+        max_sleep: int = 12,
+    ):
+        retries = 0
+        status = self.get_resource_events(
+            resource_id=resource_id, resource_type=resource_type, event_type=event_type
+        )
+
+        while (
+            not any(event for event in status if event.get("state") == "Completed")
+            and retries < max_retries
+        ):
+            time.sleep(random.randint(min_sleep, max_sleep))
+            status = self.get_resource_events(
+                resource_id=resource_id,
+                resource_type=resource_type,
+                event_type=event_type,
+            )
+            retries += 1
+        return next(
+            (event for event in status if event.get("state") == "Completed"), {}
+        )
+
+    def wait_for_untyped_event_completed(
+        self,
+        resource_id,
+        other_id,
+        event_type,
+        max_retries: int = 30,
+        min_sleep: int = 5,
+        max_sleep: int = 10,
+    ):
+        retries = 0
+        cur_status = self.get_resource_events(event_type, keyword=other_id)
+        start_id = next(
+            (
+                event
+                for event in cur_status
+                if resource_id in event.get("description", "")
+                and other_id in event.get("description", "")
+            ),
+            {},
+        )
+        status = [start_id]
+        while (
+            not any(
+                event
+                for event in status
+                if event.get("state") == "Completed"
+                and resource_id in event.get("description", "")
+                and other_id in event.get("description", "")
+            )
+            and retries < max_retries
+        ):
+            time.sleep(random.randint(min_sleep, max_sleep))
+            status = self.get_resource_events(event_type, keyword=other_id)
+            retries += 1
+        return next(
+            (
+                event
+                for event in status
+                if event.get("state") == "Completed"
+                and resource_id in event.get("description", "")
+                and other_id in event.get("description", "")
+            ),
+            {},
+        )
 
     def verify_connection(self, logger):
         inputs = {"command": "listVirtualMachines"}

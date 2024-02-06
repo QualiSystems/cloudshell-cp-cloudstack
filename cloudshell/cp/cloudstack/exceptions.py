@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
-from cloudshell.cp.cloudstack.entities.network import Network
-from cloudshell.cp.cloudstack.entities.vm import CloudstackVirtualMachine
+if TYPE_CHECKING:
+    from cloudshell.cp.cloudstack.entities.network import Network
+    from cloudshell.cp.cloudstack.entities.vm import CloudstackVirtualMachine
 
 
 class CloudstackBaseException(Exception):

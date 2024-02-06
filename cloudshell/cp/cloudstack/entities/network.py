@@ -17,6 +17,10 @@ from cloudshell.cp.cloudstack.models.connectivity_action_model import SubnetCidr
 
 @attr.s(auto_attribs=True, str=False)
 class Network:
+    RESOURCE_TYPE = "Network"
+    NETWORK_DELETE_TYPE = "NETWORK.DELETE"
+    NETWORK_CREATE_TYPE = "NETWORK.CREATE"
+
     api: ClassVar[CloudStackAPIClient]
     _logger: ClassVar[Logger]
 
@@ -59,7 +63,7 @@ class Network:
         try:
             network = networks[0]
         except (TypeError, IndexError):
-            raise NetworkNotFound(id_=id_) from None
+            raise NetworkNotFound(id_=id_)
         return network
 
     @classmethod
@@ -134,7 +138,7 @@ class Network:
                     "endip": str(subnet_cidr_data.allocation_pool[1]),  # type: ignore
                 }
             )
-        cls._logger.debug(f"Creating a network {name}")
+        cls._logger.info(f"Creating a network {name}")
         response = cls.api.send_request(inputs)
         if response.status_code != 200 and response.status_code != 201:
             raise CreateNetworkError(
@@ -144,32 +148,57 @@ class Network:
                 .get("createnetworkresponse", {})
                 .get("errortext"),
             )
-        response_json = response.json()
         id_ = (
-            response_json.get("createnetworkresponse", {}).get("network", {}).get("id")
+            response.json()
+            .get("createnetworkresponse", {})
+            .get("network", {})
+            .get("id")
         )
-        job_id = response_json.get("createnetworkresponse", {}).get("jobid")
-        status = cls.api.wait_for_job(job_id)
-        if status != 1:
+
+        state = cls.api.wait_for_event_completed(
+            resource_id=id_,
+            resource_type=cls.RESOURCE_TYPE,
+            event_type=cls.NETWORK_CREATE_TYPE,
+        )
+        if state.get("state") != "Completed":
             raise CreateNetworkError(
                 name=name,
                 vlan_id=vlan_id,
-                error_message=f"Network creation process complete with "
-                f"status: {status}",
+                error_message=state.get("description"),
             )
         return cls.find_by_id(id_)
 
-    def remove(self, raise_in_use: bool = True) -> None:
-        self._logger.debug(f"Removing {self}")
+    def remove(self, raise_in_use: bool = True, max_retries=5) -> None:
+        self._logger.info(f"Removing Network {self}")
         inputs = {"command": "deleteNetwork", "id": self.id_, "forced": "True"}
-        response = self.api.send_request(inputs)
-        if raise_in_use and (
-            response.status_code != 200 and response.status_code != 201
-        ):
-            raise NetworkInUse(self)
-        job_id = response.json().get("deletenetworkresponse", {}).get("jobid")
-        status = self.api.wait_for_job(job_id)
-        if status != 1:
-            self._logger.warning(
-                f"Network deletion process failed with status: {status}"
+        network = self
+        while network is not None and max_retries > 0:
+            response = self.api.send_request(inputs)
+            self._logger.info(
+                f"Network deletion process completed with status: "
+                f"{response.status_code}. Errors"
+                f": {response.json().get('deletenetworkresponse', {}).get('errortext')}"
             )
+            if raise_in_use and (
+                response.status_code != 200 and response.status_code != 201
+            ):
+                error_text = (
+                    response.json().get("deletenetworkresponse", {}).get("errortext")
+                )
+                self._logger.warning(
+                    f"Network deletion process failed with status: " f"{error_text}"
+                )
+                raise NetworkInUse(self)
+            state = self.api.wait_for_event_completed(
+                self.id_, self.RESOURCE_TYPE, self.NETWORK_CREATE_TYPE
+            )
+            if state.get("state") != "Completed":
+                self._logger.warning(
+                    f"Network deletion process failed with status: "
+                    f"{state.get('description')}"
+                )
+            try:
+                network = self.find_by_id(self.id_)
+            except NetworkNotFound:
+                network = None
+            max_retries -= 1

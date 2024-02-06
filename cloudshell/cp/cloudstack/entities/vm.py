@@ -47,6 +47,12 @@ class VMState(Enum):
 
 @attr.s(auto_attribs=True, str=False)
 class CloudstackVirtualMachine:
+    RESOURCE_TYPE = "VirtualMachine"
+    VM_DESTROY_TYPE = "VM.DESTROY"
+    VM_CREATE_TYPE = "VM.CREATE"
+    NIC_CREATE_TYPE = "NIC.CREATE"
+    NIC_DELETE_TYPE = "NIC.DELETE"
+
     _api: ClassVar[CloudStackAPIClient]
     _logger: ClassVar[Logger]
 
@@ -64,6 +70,10 @@ class CloudstackVirtualMachine:
     @property
     def guest_os(self):
         return self.vm_data.get("osdisplayname")
+
+    @property
+    def _creation_date(self):
+        return self.vm_data.get("created")
 
     @cached_property
     def vm_name(self):
@@ -126,7 +136,12 @@ class CloudstackVirtualMachine:
 
         if response.status_code != 200 and response.status_code != 201:
             raise InstanceNotFound(name=deploy_action.app_name)
-
+        id_ = response.json()["deployvirtualmachineresponse"]["id"]
+        state = cls._api.wait_for_event_completed(
+            id_, cls.RESOURCE_TYPE, cls.VM_CREATE_TYPE
+        )
+        if state.get("state") != "Completed":
+            raise InstanceNotFound(name=vm_name)
         return cls(vm_uuid=response.json()["deployvirtualmachineresponse"]["id"])
 
     def wait_for_vm_to_start(self, timeout: int = 400) -> None:
@@ -153,12 +168,30 @@ class CloudstackVirtualMachine:
             and response.status_code != 201
             or not json_response.get("listvirtualmachinesresponse")
         ):
-            raise Exception(
-                "Unable to refresh CloudstackVirtualMachine IP. uid: {}".format(
-                    self.vm_uuid
-                )
+            self._logger.warning(
+                f"Instance deployment failed with: http status:"
+                f" {response.status_code}, response: {response.text}"
             )
+            raise InstanceNotFound(id_=self.vm_uuid)
         return json_response["listvirtualmachinesresponse"]["virtualmachine"][0]
+
+    def get_nics(self, network_id=None):
+        inputs = {"command": "listNics", "virtualmachineid": self.vm_uuid}
+        if network_id:
+            inputs["networkid"] = network_id
+        response = self._api.send_request(inputs)
+        json_response = response.json()
+        if (
+            response.status_code != 200
+            and response.status_code != 201
+            or not json_response.get("listnicsresponse")
+        ):
+            self._logger.warning(
+                f"Failed to download list of attached vNICs. "
+                f"Http status:"
+                f" {response.status_code}, error: {response.text}"
+            )
+        return json_response.get("listnicsresponse", {}).get("nic", [])
 
     def get_vm_state(self):
         if not self._does_vm_exist:
@@ -203,13 +236,6 @@ class CloudstackVirtualMachine:
                 )
             )
 
-    def get_vm_vnics(self):
-        if not self._does_vm_exist:
-            raise Exception(
-                f"CloudstackVirtualMachine does not exist. uid: {self.vm_uuid}"
-            )
-        return self.vm_data["nic"]
-
     def get_vm_ip(self, pattern: str) -> Interface:
         if not self._does_vm_exist:
             raise Exception(
@@ -238,6 +264,7 @@ class CloudstackVirtualMachine:
             raise CloudstackNetworkException(
                 f"CloudstackVirtualMachine does not exist. uid: {self.vm_uuid}"
             )
+
         nic = next(
             (x for x in self.get_interfaces() if x.network_id == network_id), None
         )
@@ -249,28 +276,38 @@ class CloudstackVirtualMachine:
             "virtualmachineid": self.vm_uuid,
             "nicid": nic.nic_id,
         }
+        state = {}
+        while nic in self.get_interfaces(network_id) and max_retries > 0:
+            self._logger.info(inputs)
+            response = self._api.send_request(inputs)
+            self._logger.info(response)
 
-        self._logger.info(inputs)
-        response = self._api.send_request(inputs)
-        self._logger.info(response)
+            if response.status_code != 200 and response.status_code != 201:
+                raise Exception(
+                    f"Unable to detach network from {self.vm_name}. "
+                    f"Error: {response.text}"
+                )
 
-        if response.status_code != 200 and response.status_code != 201:
-            raise Exception(
-                f"Unable to detach network from {self.vm_name}. error: {response.text}"
+            state = self._api.wait_for_untyped_event_completed(
+                resource_id=nic.nic_id,
+                other_id=self.vm_uuid,
+                event_type=self.NIC_DELETE_TYPE,
             )
+            if state.get("state") != "Completed":
+                self._logger.warning(
+                    f"Unable to detach {self.vm_name} from {nic.network}."
+                    f"Job state: {state.get('description')}"
+                    f"Trying again. Retries left: {max_retries}"
+                )
 
-        job_id = (
-            response.json().get("removenicfromvirtualmachineresponse", {}).get("jobid")
-        )
-        status = 0
-        if job_id:
-            status = self._api.wait_for_job(job_id)
-
-        if nic in self.get_interfaces():
-            self._logger.warning(
-                f"Unable to detach {self.vm_name} from {nic.network}."
-                f"Job status: {status or 'unknown'}"
-            )
+            time.sleep(6)
+            max_retries -= 1
+        else:
+            if nic in self.get_interfaces(network_id):
+                self._logger.warning(
+                    f"Failed to detach {self.vm_name} from {nic.network}."
+                    f"Job state: {state.get('description')}"
+                )
 
     def _check_interface_still_exists(self, nic):
         return nic in self.get_interfaces()
@@ -291,23 +328,32 @@ class CloudstackVirtualMachine:
         self._logger.info(response)
 
         if response.status_code != 200 and response.status_code != 201:
-            raise Exception(
-                "Unable to attach network to CloudstackVirtualMachine. uid: {}".format(
-                    self.vm_uuid
-                )
+            self._logger.error(
+                f"Unable to attach {self.vm_name} to {network_id}."
+                f"Job state: {response.text}"
             )
-        status = self._api.wait_for_job(
-            response.json()["addnictovirtualmachineresponse"]["jobid"]
+            PortIsNotAttached(network_id, self)
+
+        state = self._api.wait_for_untyped_event_completed(
+            resource_id=network_id,
+            other_id=self.vm_uuid,
+            event_type=self.NIC_CREATE_TYPE,
         )
+        interface = None
+        if "Completed" in state.get("state", ""):
+            interface = next(
+                (x for x in self.get_interfaces() if x.network_id == network_id), None
+            )
+        if not interface:
+            self._logger.warning(
+                f"Unable to attach {self.vm_name} to {network_id}."
+                f"Job state: {state.get('description')}"
+            )
+            raise PortIsNotAttached(network_id, self)
 
-        if status != 1:
-            raise PortIsNotAttached(self, network_id)
+        return interface
 
-        return next(
-            (x for x in self.get_interfaces() if x.network_id == network_id), None
-        )
-
-    def get_interfaces(self):
+    def get_interfaces(self, network_id=None):
         return [
             Interface(
                 nic_id=nic.get("id"),
@@ -318,7 +364,7 @@ class CloudstackVirtualMachine:
                 mac_address=nic.get("macaddress"),
                 interface_index=int(nic.get("deviceid")),
             )
-            for nic in self.get_vm_data().get("nic", [])
+            for nic in self.get_nics(network_id=network_id)
         ]
 
     def get_interface_by_mac(self, mac_address):
@@ -347,9 +393,16 @@ class CloudstackVirtualMachine:
         self._logger.info(response)
 
         if response.status_code != 200 and response.status_code != 201:
-            raise Exception(
-                "Unable to delete CloudstackVirtualMachine. uid: {}".format(
-                    self.vm_uuid
-                )
+            InstanceErrorState(
+                self, f"Unable to delete instance with uid: {self.vm_uuid}"
             )
-        self._does_vm_exist = False
+
+        state = self._api.wait_for_event_completed(
+            self.vm_uuid, self.RESOURCE_TYPE, self.VM_DESTROY_TYPE
+        )
+        if state.get("state") != "Completed":
+            InstanceErrorState(
+                self,
+                "Unable to delete instance with uid: {} "
+                "with error: {}".format(self.vm_uuid, state.get("description")),
+            )
